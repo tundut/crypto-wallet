@@ -2170,3 +2170,332 @@ body {
   opacity: 0.4;
   cursor: not-allowed;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   3.4.7 — BRUTE-FORCE RATE LIMITING ATTACK
+   ═══════════════════════════════════════════════════════════════ */
+
+.scenario-tag.bruteforce {
+  background: rgba(255, 159, 67, 0.12);
+  color: #ff9f43;
+  border: 1px solid rgba(255, 159, 67, 0.3);
+}
+
+.scenario-tag.clockdrift {
+  background: rgba(72, 149, 239, 0.12);
+  color: #4895ef;
+  border: 1px solid rgba(72, 149, 239, 0.3);
+}
+
+.btn-bruteforce-action {
+  background: linear-gradient(135deg, rgba(255, 159, 67, 0.15), rgba(255, 159, 67, 0.05));
+  color: #ff9f43;
+  border: 1px solid rgba(255, 159, 67, 0.35);
+}
+
+.btn-bruteforce-action:hover:not(:disabled) {
+  background: #ff9f43;
+  color: var(--bg);
+  box-shadow: 0 4px 16px rgba(255, 159, 67, 0.25);
+  transform: translateY(-1px);
+}
+
+.btn-clockdrift-action {
+  background: linear-gradient(135deg, rgba(72, 149, 239, 0.15), rgba(72, 149, 239, 0.05));
+  color: #4895ef;
+  border: 1px solid rgba(72, 149, 239, 0.35);
+}
+
+.btn-clockdrift-action:hover:not(:disabled) {
+  background: #4895ef;
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(72, 149, 239, 0.25);
+  transform: translateY(-1px);
+}
+
+/* ── BRUTE-FORCE LOG PANEL ──────────────────────────────────── */
+.brute-log-panel {
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.brute-log-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--bg3);
+  border-bottom: 1px solid var(--border);
+}
+
+.brute-log-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text2);
+  flex: 1;
+}
+
+.brute-log-counter {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text3);
+  background: var(--bg);
+  padding: 2px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+
+.brute-log-body {
+  padding: 12px 16px;
+  max-height: 280px;
+  overflow-y: auto;
+  min-height: 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.brute-log-empty {
+  color: var(--text3);
+  font-size: 12px;
+  text-align: center;
+  padding: 20px;
+}
+
+.brute-log-entry {
+  display: grid;
+  grid-template-columns: 36px 70px 1fr 50px;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-family: var(--mono);
+  animation: fadeSlideIn 0.2s ease;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+}
+
+.brute-log-entry.failed {
+  border-left: 3px solid var(--red);
+}
+
+.brute-log-entry.locked {
+  border-left: 3px solid #ff9f43;
+  background: rgba(255, 159, 67, 0.06);
+}
+
+.brute-log-entry.error {
+  border-left: 3px solid var(--yellow);
+}
+
+.ble-num {
+  color: var(--text3);
+  font-weight: 700;
+}
+
+.ble-otp {
+  color: var(--accent2);
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+
+.ble-status {
+  color: var(--text);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ble-time {
+  color: var(--text3);
+  text-align: right;
+  font-size: 10px;
+}
+
+/* Progress bar */
+.brute-progress-bar {
+  height: 3px;
+  background: var(--border);
+  position: relative;
+}
+
+.brute-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.3s ease, background 0.3s ease;
+  border-radius: 0 2px 2px 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   3.4.8 — CLOCK DRIFT EXPLOITATION
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Drift slider */
+.drift-slider {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(to right,
+      var(--red) 0%,
+      var(--yellow) 25%,
+      var(--green) 45%,
+      var(--green) 55%,
+      var(--yellow) 75%,
+      var(--red) 100%);
+  outline: none;
+  margin: 10px 0;
+}
+
+.drift-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--text);
+  border: 3px solid var(--accent);
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  transition: transform 0.15s;
+}
+
+.drift-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 2px 12px rgba(124, 106, 255, 0.4);
+}
+
+.drift-slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--text);
+  border: 3px solid var(--accent);
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.drift-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--text3);
+  margin-top: 2px;
+}
+
+/* Drift preset buttons */
+.drift-presets {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 8px 0;
+}
+
+.drift-preset-btn {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  color: var(--text2);
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.drift-preset-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-glow);
+}
+
+/* Drift comparison table */
+.drift-comparison {
+  margin-top: 12px;
+  animation: fadeSlideIn 0.3s ease;
+}
+
+.drift-table {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.drift-row {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1fr;
+  border-bottom: 1px solid var(--border);
+}
+
+.drift-row:last-child {
+  border-bottom: none;
+}
+
+.drift-row-header {
+  background: var(--bg4);
+}
+
+.drift-row-header .drift-cell {
+  font-weight: 700;
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 10px;
+}
+
+.drift-cell {
+  padding: 10px 14px;
+  font-size: 12px;
+  font-family: var(--mono);
+  color: var(--text2);
+  border-right: 1px solid var(--border);
+}
+
+.drift-cell:last-child {
+  border-right: none;
+}
+
+.drift-cell.label {
+  font-family: var(--sans);
+  font-weight: 600;
+  color: var(--text3);
+  font-size: 11px;
+}
+
+.drift-cell.val {
+  color: var(--text);
+}
+
+.drift-cell.val.ok {
+  color: var(--green);
+  font-weight: 700;
+}
+
+.drift-cell.val.fail {
+  color: var(--red);
+  font-weight: 700;
+}
+
+.drift-cell.val.danger {
+  color: var(--red);
+}
+
+.otp-highlight {
+  font-size: 16px !important;
+  font-weight: 800 !important;
+  letter-spacing: 3px;
+}
+
+.otp-highlight.match {
+  color: var(--green) !important;
+}
+
+.otp-highlight.mismatch {
+  color: var(--red) !important;
+}

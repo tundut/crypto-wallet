@@ -1081,6 +1081,10 @@ function loadAttack() {
   const fromEl = document.getElementById('integrity-from');
   if (fromEl) fromEl.value = activeWallet.address;
 
+  // Auto-fill brute-force address
+  const bfAddr = document.getElementById('bf-address');
+  if (bfAddr) bfAddr.value = activeWallet.address;
+
   // Auto-fill nonce
   provider.getTransactionCount(activeWallet.address).then(nonce => {
     const nonceEl = document.getElementById('integrity-nonce');
@@ -2134,6 +2138,277 @@ async function getAllWalletBalanceUSD() {
     const w = allWallets[i];
     const walletData = await getWalletBalance(w.address)
     w.balanceUSD = walletData.walletBalanceUSD
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 3.4.7 — BRUTE-FORCE RATE LIMITING ATTACK DEMO
+// ═══════════════════════════════════════════════════════════════
+let _bfRunning = false;
+
+async function runBruteForceDemo() {
+  if (!activeWallet) { toast('Vui lòng mở khoá ví trước.', 'error'); return; }
+  if (_bfRunning) { toast('Demo đang chạy, vui lòng chờ...', 'info'); return; }
+
+  const totalAttempts = parseInt(document.getElementById('bf-attempts-count').value) || 10;
+  const delay = parseInt(document.getElementById('bf-delay').value) || 800;
+  const logBody = document.getElementById('bf-log-body');
+  const logCounter = document.getElementById('bf-log-counter');
+  const progressFill = document.getElementById('bf-progress-fill');
+  const resultEl = document.getElementById('bf-result');
+  const btn = document.getElementById('bf-start-btn');
+
+  // Reset UI
+  logBody.innerHTML = '';
+  logCounter.textContent = `0 / ${totalAttempts}`;
+  progressFill.style.width = '0%';
+  resultEl.innerHTML = '';
+
+  // Activate step 2
+  const m2 = document.getElementById('bf-marker-2');
+  if (m2) m2.classList.add('active');
+
+  _bfRunning = true;
+  btn.disabled = true;
+  btn.querySelector('span:last-child').textContent = '⏳ Đang tấn công...';
+
+  // Reset lock before starting demo
+  try {
+    await api('/otp/reset-lock', {
+      method: 'POST',
+      body: JSON.stringify({ address: activeWallet.address })
+    });
+  } catch (e) { /* ignore */ }
+
+  let locked = false;
+  let lockAttempt = 0;
+  const startTime = Date.now();
+
+  for (let i = 1; i <= totalAttempts; i++) {
+    if (locked) break;
+
+    // Generate random 6-digit OTP
+    const randomOtp = String(Math.floor(100000 + Math.random() * 900000));
+
+    try {
+      const data = await api('/otp/brute-force-test', {
+        method: 'POST',
+        body: JSON.stringify({ address: activeWallet.address, otp: randomOtp })
+      });
+
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+      const isLocked = data.locked || data.justLocked;
+      const statusIcon = isLocked ? '🔒' : '❌';
+      const statusClass = isLocked ? 'locked' : 'failed';
+
+      const logEntry = document.createElement('div');
+      logEntry.className = `brute-log-entry ${statusClass}`;
+      logEntry.innerHTML = `
+        <span class="ble-num">#${i}</span>
+        <span class="ble-otp">${randomOtp}</span>
+        <span class="ble-status">${statusIcon} ${data.message}</span>
+        <span class="ble-time">${elapsed}s</span>
+      `;
+      logBody.appendChild(logEntry);
+      logBody.scrollTop = logBody.scrollHeight;
+
+      // Update counter & progress
+      logCounter.textContent = `${i} / ${totalAttempts}`;
+      progressFill.style.width = `${(i / totalAttempts) * 100}%`;
+
+      if (isLocked) {
+        locked = true;
+        lockAttempt = i;
+        progressFill.style.background = 'var(--red)';
+      }
+
+    } catch (e) {
+      const logEntry = document.createElement('div');
+      logEntry.className = 'brute-log-entry error';
+      logEntry.innerHTML = `
+        <span class="ble-num">#${i}</span>
+        <span class="ble-otp">${randomOtp}</span>
+        <span class="ble-status">⚠️ ${e.message}</span>
+        <span class="ble-time">—</span>
+      `;
+      logBody.appendChild(logEntry);
+      logBody.scrollTop = logBody.scrollHeight;
+    }
+
+    // Delay between attempts
+    if (i < totalAttempts && !locked) {
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+
+  // Activate step 3
+  const m3 = document.getElementById('bf-marker-3');
+  if (m3) m3.classList.add('active');
+
+  const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
+
+  if (locked) {
+    if (m3) m3.classList.add('completed');
+    progressFill.style.background = 'var(--green)';
+
+    resultEl.innerHTML = `
+      <div class="integrity-step">
+        <div class="step-num ok">✓</div>
+        <div class="step-content">
+          <div class="step-label">✅ Hệ thống Rate Limiting hoạt động chính xác!</div>
+          <div class="step-val">Tài khoản bị KHOÁ sau ${lockAttempt} lần thử OTP sai liên tiếp (giới hạn: 5 lần).
+Thời gian khoá: 15 phút. Tổng thời gian demo: ${totalTime}s.</div>
+        </div>
+      </div>
+      <div class="conclusion-box success">
+        ✅ KẾT LUẬN: Hệ thống kích hoạt cơ chế giới hạn tần suất (Rate Limiting) sau 5 lần sai quy định.
+        Tự động khoá tính năng nhập OTP và tạm thời đóng băng phiên làm việc trong 15 phút.
+        → Tấn công Brute-force THẤT BẠI.
+      </div>
+    `;
+  } else {
+    if (m3) m3.classList.add('error');
+    resultEl.innerHTML = `
+      <div class="conclusion-box fail">
+        ⚠️ Đã gửi ${totalAttempts} lần nhưng tài khoản chưa bị khoá. Kiểm tra lại cấu hình Rate Limiting.
+      </div>
+    `;
+  }
+
+  _bfRunning = false;
+  btn.disabled = false;
+  btn.querySelector('span:last-child').textContent = 'Bắt đầu tấn công Brute-force';
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 3.4.8 — CLOCK DRIFT EXPLOITATION DEMO
+// ═══════════════════════════════════════════════════════════════
+function updateDriftDisplay(value) {
+  const sec = parseInt(value);
+  const display = document.getElementById('cd-drift-display');
+  if (Math.abs(sec) >= 60) {
+    const min = (sec / 60).toFixed(1);
+    display.textContent = `${min > 0 ? '+' : ''}${min} phút (${sec}s)`;
+  } else {
+    display.textContent = `${sec > 0 ? '+' : ''}${sec} giây`;
+  }
+  // Color coding
+  const abs = Math.abs(sec);
+  if (abs <= 30) display.style.color = 'var(--green)';
+  else if (abs <= 90) display.style.color = 'var(--yellow)';
+  else display.style.color = 'var(--red)';
+}
+
+function setDrift(val) {
+  const slider = document.getElementById('cd-drift-slider');
+  slider.value = val;
+  updateDriftDisplay(val);
+}
+
+async function runClockDriftDemo() {
+  if (!activeWallet) { toast('Vui lòng mở khoá ví trước.', 'error'); return; }
+
+  const driftSeconds = parseInt(document.getElementById('cd-drift-slider').value) || 0;
+  const comparisonEl = document.getElementById('cd-comparison');
+  const resultEl = document.getElementById('cd-result');
+  const btn = document.getElementById('cd-start-btn');
+
+  // Activate step 2
+  const m2 = document.getElementById('cd-marker-2');
+  if (m2) m2.classList.add('active');
+
+  btn.disabled = true;
+  btn.querySelector('span:last-child').textContent = '⏳ Đang mô phỏng...';
+  comparisonEl.style.display = 'none';
+  resultEl.innerHTML = '<span style="color:var(--text3)">⏳ Đang gửi yêu cầu...</span>';
+
+  try {
+    const data = await api('/otp/verify-with-drift', {
+      method: 'POST',
+      body: JSON.stringify({ address: activeWallet.address, driftSeconds })
+    });
+
+    // Step 2: Show comparison
+    comparisonEl.style.display = 'block';
+    const matchIcon = data.otpMatch ? '✅ Khớp' : '❌ Không khớp';
+    const matchClass = data.otpMatch ? 'match' : 'mismatch';
+
+    comparisonEl.innerHTML = `
+      <div class="drift-table">
+        <div class="drift-row drift-row-header">
+          <div class="drift-cell">Thông số</div>
+          <div class="drift-cell">Máy chủ (Server)</div>
+          <div class="drift-cell">Ứng dụng ví (Client lệch)</div>
+        </div>
+        <div class="drift-row">
+          <div class="drift-cell label">Thời gian UTC</div>
+          <div class="drift-cell val">${new Date(data.realTimeUTC).toLocaleTimeString('vi-VN')}</div>
+          <div class="drift-cell val ${data.absDriftSeconds > 30 ? 'danger' : ''}">${new Date(data.driftedTimeUTC).toLocaleTimeString('vi-VN')}</div>
+        </div>
+        <div class="drift-row">
+          <div class="drift-cell label">Mã OTP</div>
+          <div class="drift-cell val otp-highlight">${data.realOtp}</div>
+          <div class="drift-cell val otp-highlight ${matchClass}">${data.driftedOtp}</div>
+        </div>
+        <div class="drift-row">
+          <div class="drift-cell label">OTP khớp nhau?</div>
+          <div class="drift-cell val" colspan="2">${matchIcon}</div>
+          <div class="drift-cell"></div>
+        </div>
+        <div class="drift-row">
+          <div class="drift-cell label">Số bước lệch (steps)</div>
+          <div class="drift-cell val" colspan="2">${data.stepsOff} bước (mỗi bước = ${data.timeStep}s)</div>
+          <div class="drift-cell"></div>
+        </div>
+        <div class="drift-row">
+          <div class="drift-cell label">Window mặc định (±1 step)</div>
+          <div class="drift-cell val ${data.isAcceptedDefault ? 'ok' : 'fail'}" colspan="2">${data.isAcceptedDefault ? '✅ Chấp nhận' : '❌ Từ chối'}</div>
+          <div class="drift-cell"></div>
+        </div>
+        <div class="drift-row">
+          <div class="drift-cell label">Window mở rộng (±2 steps)</div>
+          <div class="drift-cell val ${data.isAcceptedWide ? 'ok' : 'fail'}" colspan="2">${data.isAcceptedWide ? '✅ Chấp nhận' : '❌ Từ chối'}</div>
+          <div class="drift-cell"></div>
+        </div>
+      </div>
+    `;
+
+    // Step 3: Result
+    const m3 = document.getElementById('cd-marker-3');
+    if (m3) m3.classList.add('active');
+
+    const isDefended = data.absDriftSeconds > 90;
+    if (m3) m3.classList.add(isDefended ? 'completed' : 'error');
+
+    const step = (num, cls, label, val) => `
+      <div class="integrity-step">
+        <div class="step-num ${cls}">${num}</div>
+        <div class="step-content">
+          <div class="step-label">${label}</div>
+          <div class="step-val">${val}</div>
+        </div>
+      </div>`;
+
+    resultEl.innerHTML = `
+      ${step(1, 'info', `⏱️ Độ lệch: ${data.driftSeconds > 0 ? '+' : ''}${data.driftSeconds}s (${data.stepsOff} time-steps)`,
+        `Server: ${new Date(data.realTimeUTC).toLocaleTimeString('vi-VN')} | Client: ${new Date(data.driftedTimeUTC).toLocaleTimeString('vi-VN')}`)}
+      ${step(2, data.otpMatch ? 'ok' : 'fail',
+        `OTP Server: ${data.realOtp} | OTP Client: ${data.driftedOtp}`,
+        data.otpMatch ? 'Hai mã OTP giống nhau → cùng time-step.' : 'Hai mã OTP KHÁC nhau → khác time-step.')}
+      ${step(3, data.isAcceptedDefault ? 'ok' : 'fail',
+        `Window mặc định (±${data.defaultWindowSteps} step = ±${data.defaultWindowSteps * data.timeStep}s): ${data.isAcceptedDefault ? 'CHẤP NHẬN' : 'TỪ CHỐI'}`,
+        `Window mở rộng (±${data.wideWindowSteps} steps = ±${data.wideWindowSteps * data.timeStep}s): ${data.isAcceptedWide ? 'CHẤP NHẬN' : 'TỪ CHỐI'}`)}
+      <div class="conclusion-box ${isDefended ? 'success' : 'fail'}">
+        ${data.verdict}<br><br>
+        ${data.conclusion}
+      </div>
+    `;
+
+  } catch (e) {
+    resultEl.innerHTML = `<div class="conclusion-box fail">⚠️ Lỗi: ${e.message}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.querySelector('span:last-child').textContent = 'Mô phỏng Clock Drift';
   }
 }
 

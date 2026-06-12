@@ -252,6 +252,169 @@ router.post('/otp/verify', async (req, res) => {
   }
 });
 
+// ── DEMO: Brute-force Rate Limiting Attack ────────────────
+router.post('/otp/brute-force-test', async (req, res) => {
+  try {
+    const { address, otp } = req.body;
+    if (!address || !otp) return res.status(400).json({ error: 'Address and OTP required' });
+
+    const walletDoc = await getQuery(`SELECT * FROM wallets WHERE address = ?`, [address]);
+    if (!walletDoc || !walletDoc.totp_secret) {
+      return res.status(400).json({ error: 'Wallet not found or TOTP not set up.' });
+    }
+
+    const now = Date.now();
+
+    // Check if already locked
+    if (walletDoc.locked_until && walletDoc.locked_until > now) {
+      const remainingMs = walletDoc.locked_until - now;
+      const remainingMinutes = Math.ceil(remainingMs / 60000);
+      return res.json({
+        success: false,
+        locked: true,
+        remainingMinutes,
+        remainingMs,
+        failedAttempts: walletDoc.failed_attempts || 0,
+        message: `🔒 Tài khoản đã bị KHOÁ. Thử lại sau ${remainingMinutes} phút.`
+      });
+    }
+
+    // Always reject (this is a brute force test with random OTP)
+    const isValid = authenticator.check(otp, walletDoc.totp_secret);
+    let failedAttempts = (walletDoc.failed_attempts || 0) + 1;
+    let lockedUntil = walletDoc.locked_until || 0;
+    let justLocked = false;
+
+    if (!isValid) {
+      if (failedAttempts >= 5) {
+        lockedUntil = now + 15 * 60 * 1000;
+        justLocked = true;
+        failedAttempts = 0;
+      }
+
+      await runQuery(
+        `UPDATE wallets SET failed_attempts = ?, locked_until = ? WHERE address = ?`,
+        [failedAttempts, lockedUntil, address]
+      );
+    } else {
+      // Reset on valid OTP
+      await runQuery(
+        `UPDATE wallets SET failed_attempts = 0, locked_until = 0 WHERE address = ?`,
+        [address]
+      );
+    }
+
+    res.json({
+      success: isValid,
+      locked: justLocked,
+      failedAttempts: isValid ? 0 : failedAttempts,
+      attemptsRemaining: isValid ? 5 : (justLocked ? 0 : 5 - failedAttempts),
+      justLocked,
+      lockedUntilMs: justLocked ? lockedUntil : 0,
+      lockDurationMinutes: justLocked ? 15 : 0,
+      otpSent: otp,
+      message: isValid
+        ? '✅ OTP hợp lệ!'
+        : justLocked
+          ? '🔒 Quá 5 lần sai — Tài khoản bị KHOÁ 15 phút!'
+          : `❌ OTP sai. Còn ${5 - failedAttempts} lần thử.`
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── DEMO: Clock Drift Exploitation ────────────────────────
+router.post('/otp/verify-with-drift', async (req, res) => {
+  try {
+    const { address, driftSeconds } = req.body;
+    if (!address) return res.status(400).json({ error: 'Address required' });
+
+    const walletDoc = await getQuery(`SELECT * FROM wallets WHERE address = ?`, [address]);
+    if (!walletDoc || !walletDoc.totp_secret) {
+      return res.status(400).json({ error: 'Wallet not found or TOTP not set up.' });
+    }
+
+    const secret = walletDoc.totp_secret;
+    const drift = parseInt(driftSeconds) || 0;
+    const nowReal = Math.floor(Date.now() / 1000);
+    const nowDrifted = nowReal + drift;
+
+    // Generate OTP at the REAL server time (this is "correct" OTP)
+    authenticator.options = { epoch: nowReal * 1000 };
+    const realOtp = authenticator.generate(secret);
+
+    // Generate OTP at the DRIFTED time (simulating a client whose clock is off)
+    authenticator.options = { epoch: nowDrifted * 1000 };
+    const driftedOtp = authenticator.generate(secret);
+
+    const timeStep = 30; // TOTP default
+    const counterDiff = Math.floor(Math.abs(drift) / timeStep);
+
+    // Reset epoch to REAL time for checking
+    authenticator.options = { epoch: nowReal * 1000 };
+
+    // Check if the drifted OTP is accepted by the standard TOTP check
+    // Default window in otplib is 1 step (±30 seconds)
+    const prevWindow = authenticator.options.window;
+    authenticator.options = { ...authenticator.options, window: 1 };
+    const isAcceptedDefault = authenticator.check(driftedOtp, secret);
+
+    // Also check with a wider window (±2 steps = ±60 seconds)
+    authenticator.options = { ...authenticator.options, window: 2 };
+    const isAcceptedWide = authenticator.check(driftedOtp, secret);
+    
+    // Reset options
+    authenticator.options = { epoch: null, window: prevWindow || 1 };
+
+    const absDriftSec = Math.abs(drift);
+    const stepsOff = counterDiff;
+
+    res.json({
+      driftSeconds: drift,
+      absDriftSeconds: absDriftSec,
+      realTimeUTC: new Date(nowReal * 1000).toISOString(),
+      driftedTimeUTC: new Date(nowDrifted * 1000).toISOString(),
+      realOtp,
+      driftedOtp,
+      otpMatch: realOtp === driftedOtp,
+      stepsOff,
+      timeStep,
+      isAcceptedDefault,      // window=1 (±30s)
+      isAcceptedWide,          // window=2 (±60s)
+      defaultWindowSteps: 1,
+      wideWindowSteps: 2,
+      verdict: absDriftSec <= 30
+        ? '✅ Trong cửa sổ cho phép — OTP được CHẤP NHẬN.'
+        : absDriftSec <= 90
+          ? '⚠️ Gần biên cửa sổ — OTP có thể được chấp nhận (tuỳ window size).'
+          : '❌ Vượt quá cửa sổ cho phép — OTP bị TỪ CHỐI. Hệ thống phát hiện clock drift.',
+      conclusion: absDriftSec > 90
+        ? 'Hệ thống TOTP từ chối OTP do lệch thời gian quá lớn. Đây là cơ chế phòng thủ Clock Drift Attack.'
+        : 'OTP vẫn hợp lệ vì nằm trong cửa sổ thời gian cho phép (window size).'
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Reset brute-force lock (for demo purposes only)
+router.post('/otp/reset-lock', async (req, res) => {
+  try {
+    const { address } = req.body;
+    if (!address) return res.status(400).json({ error: 'Address required' });
+
+    await runQuery(
+      `UPDATE wallets SET failed_attempts = 0, locked_until = 0 WHERE address = ?`,
+      [address]
+    );
+
+    res.json({ success: true, message: 'Lock reset successfully' });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // router.post('/wallet/export', async (req, res) => {
 //   try {
 //     const { address, password } = req.body;

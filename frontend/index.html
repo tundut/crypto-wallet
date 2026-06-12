@@ -475,6 +475,178 @@
               </div>
             </div>
           </div>
+
+          <!-- ═══════════════════════════════════════════════════ -->
+          <!-- 3.4.7 — BRUTE-FORCE RATE LIMITING ATTACK            -->
+          <!-- ═══════════════════════════════════════════════════ -->
+          <div class="scenario-card" id="scenario-bruteforce">
+            <div class="scenario-header">
+              <div class="scenario-title-block">
+                <h3>Dò mã OTP hàng loạt <span class="scenario-tag bruteforce">Brute-force</span></h3>
+                <p>Thử nghiệm ranh giới bảo mật của lớp xác thực hai yếu tố OTP trước các dấu hiệu tấn công điền mã
+                  bừa bãi. Hệ thống sẽ khoá tài khoản sau 5 lần sai.</p>
+              </div>
+              <div class="scenario-icon">🔓</div>
+            </div>
+
+            <div class="scenario-body">
+              <div class="scenario-flow">
+                <!-- STEP 1: Config -->
+                <div class="flow-step" id="bf-flow-step1">
+                  <div class="flow-step-marker active">
+                    <span class="flow-step-num">1</span>
+                  </div>
+                  <div class="flow-step-content">
+                    <div class="flow-step-title">Cấu hình tấn công Brute-force</div>
+                    <div class="flow-step-desc">Cấu hình số lần gửi OTP sai liên tiếp. Script sẽ tự động tạo mã OTP
+                      ngẫu nhiên và gửi đến hệ thống xác thực.</div>
+                    <div class="flow-step-form">
+                      <div class="flow-form-grid">
+                        <div class="flow-field">
+                          <label>Địa chỉ ví (tự điền)</label>
+                          <input type="text" id="bf-address" placeholder="0x..." class="monospace" readonly>
+                        </div>
+                        <div class="flow-field">
+                          <label>Số lần gửi OTP sai</label>
+                          <input type="number" id="bf-attempts-count" value="10" min="1" max="20" step="1">
+                        </div>
+                      </div>
+                      <div class="flow-form-grid">
+                        <div class="flow-field">
+                          <label>Delay giữa các lần (ms)</label>
+                          <input type="number" id="bf-delay" value="800" min="200" max="3000" step="100">
+                        </div>
+                      </div>
+                      <button class="btn-action btn-bruteforce-action" id="bf-start-btn"
+                        onclick="runBruteForceDemo()">
+                        <span class="btn-action-icon">⚡</span>
+                        <span>Bắt đầu tấn công Brute-force</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- STEP 2: Live Log -->
+                <div class="flow-step" id="bf-flow-step2">
+                  <div class="flow-step-marker" id="bf-marker-2">
+                    <span class="flow-step-num">2</span>
+                  </div>
+                  <div class="flow-step-content">
+                    <div class="flow-step-title">📡 Live Attack Log</div>
+                    <div class="flow-step-desc">Mỗi lần gửi OTP sai sẽ được hiển thị realtime tại đây.</div>
+                    <div class="brute-log-panel" id="bf-log-panel">
+                      <div class="brute-log-header">
+                        <div class="monitor-dots">
+                          <span class="mdot red"></span>
+                          <span class="mdot yellow"></span>
+                          <span class="mdot green"></span>
+                        </div>
+                        <span class="brute-log-title">Attack Log</span>
+                        <span class="brute-log-counter" id="bf-log-counter">0 / 0</span>
+                      </div>
+                      <div class="brute-log-body" id="bf-log-body">
+                        <div class="brute-log-empty">📭 Chưa có attempt nào. Nhấn "Bắt đầu tấn công" để chạy demo.
+                        </div>
+                      </div>
+                      <div class="brute-progress-bar">
+                        <div class="brute-progress-fill" id="bf-progress-fill" style="width: 0%"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- STEP 3: Result -->
+                <div class="flow-step" id="bf-flow-step3">
+                  <div class="flow-step-marker" id="bf-marker-3">
+                    <span class="flow-step-num">3</span>
+                  </div>
+                  <div class="flow-step-content">
+                    <div class="flow-step-title">Kết quả phòng thủ</div>
+                    <div id="bf-result" class="scenario-result"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ═══════════════════════════════════════════════════ -->
+          <!-- 3.4.8 — CLOCK DRIFT EXPLOITATION                    -->
+          <!-- ═══════════════════════════════════════════════════ -->
+          <div class="scenario-card" id="scenario-clockdrift">
+            <div class="scenario-header">
+              <div class="scenario-title-block">
+                <h3>Tấn công Thao túng thời gian <span class="scenario-tag clockdrift">Clock Drift</span></h3>
+                <p>Kiểm thử giới hạn lý thuyết về sự phụ thuộc đồng bộ thời gian của thuật toán TOTP. Cố ý chỉnh
+                  lệch thời gian 2-5 phút so với máy chủ sinh mã số.</p>
+              </div>
+              <div class="scenario-icon">⏰</div>
+            </div>
+
+            <div class="scenario-body">
+              <div class="scenario-flow">
+                <!-- STEP 1: Drift Config -->
+                <div class="flow-step" id="cd-flow-step1">
+                  <div class="flow-step-marker active">
+                    <span class="flow-step-num">1</span>
+                  </div>
+                  <div class="flow-step-content">
+                    <div class="flow-step-title">Chọn mức lệch thời gian (Clock Drift)</div>
+                    <div class="flow-step-desc">Chọn số giây lệch so với thời gian thực của máy chủ. TOTP sử dụng
+                      cửa sổ thời gian 30 giây (time step). Lệch nhỏ (≤30s) sẽ được chấp nhận, lệch lớn (≥5 phút)
+                      sẽ bị từ chối.</div>
+                    <div class="flow-step-form">
+                      <div class="flow-field" style="width: 100%">
+                        <label>Độ lệch thời gian: <strong id="cd-drift-display">0 giây</strong></label>
+                        <input type="range" id="cd-drift-slider" class="drift-slider" min="-600" max="600" value="0"
+                          step="30" oninput="updateDriftDisplay(this.value)">
+                        <div class="drift-labels">
+                          <span>-10 phút</span>
+                          <span style="color:var(--green)">0s (đồng bộ)</span>
+                          <span>+10 phút</span>
+                        </div>
+                      </div>
+                      <div class="drift-presets">
+                        <button class="drift-preset-btn" onclick="setDrift(0)">0s (Đồng bộ)</button>
+                        <button class="drift-preset-btn" onclick="setDrift(30)">+30s</button>
+                        <button class="drift-preset-btn" onclick="setDrift(60)">+1 phút</button>
+                        <button class="drift-preset-btn" onclick="setDrift(120)">+2 phút</button>
+                        <button class="drift-preset-btn" onclick="setDrift(300)">+5 phút</button>
+                        <button class="drift-preset-btn" onclick="setDrift(-300)">-5 phút</button>
+                      </div>
+                      <button class="btn-action btn-clockdrift-action" id="cd-start-btn"
+                        onclick="runClockDriftDemo()">
+                        <span class="btn-action-icon">⏱️</span>
+                        <span>Mô phỏng Clock Drift</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- STEP 2: Comparison -->
+                <div class="flow-step" id="cd-flow-step2">
+                  <div class="flow-step-marker" id="cd-marker-2">
+                    <span class="flow-step-num">2</span>
+                  </div>
+                  <div class="flow-step-content">
+                    <div class="flow-step-title">📊 So sánh OTP</div>
+                    <div class="flow-step-desc">So sánh mã OTP tạo tại thời gian thực vs thời gian bị lệch.</div>
+                    <div id="cd-comparison" class="drift-comparison" style="display:none"></div>
+                  </div>
+                </div>
+
+                <!-- STEP 3: Result -->
+                <div class="flow-step" id="cd-flow-step3">
+                  <div class="flow-step-marker" id="cd-marker-3">
+                    <span class="flow-step-num">3</span>
+                  </div>
+                  <div class="flow-step-content">
+                    <div class="flow-step-title">Kết quả xác minh</div>
+                    <div id="cd-result" class="scenario-result"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
