@@ -140,7 +140,7 @@
           <div class="review-row"><span class="review-label">Network fee</span><span id="swap-review-fee" class="review-value">Auto</span></div>
           <div class="review-actions">
             <button class="btn-ghost" onclick="backToSwapForm()">Cancel</button>
-            <button class="btn-primary" onclick="executeSwap()">Confirm Swap</button>
+            <button class="btn-primary" onclick="swap()">Confirm Swap</button>
           </div>
         </div>
       </div>
@@ -559,12 +559,12 @@
       </div>
     </div>
     <div class="form-group" id="import-mnemonic-input-group">
-      <label style="margin-top: 15px;">MNEMONIC PHRASE (12 OR 24 WORDS)</label>
+      <!-- <label style="margin-top: 15px;">MNEMONIC PHRASE (12 OR 24 WORDS)</label>
       <textarea id="import-mnemonic-phrase" rows="3" placeholder="word1 word2 ..."></textarea>
       <div style="display: flex; gap: 10px; align-items: center; margin-top: 10px;">
         <label>ACCOUNT INDEX:</label>
         <input type="number" id="import-mnemonic-index" value="0" min="0" max="99" style="width:100px">
-      </div>
+      </div> -->
       <label style="margin-top: 15px;">WALLET PASSWORD</label>
       <input type="password" id="import-mnemonic-password" placeholder="Choose a password">
     </div>

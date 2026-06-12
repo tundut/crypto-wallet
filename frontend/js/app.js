@@ -341,6 +341,7 @@ async function importFromMnemonic() {
     activeWallet = ethers.Wallet.fromPhrase(mnemonic);
 
     await reloadWallets();
+    await updateWalletData();
     await refreshAll();
     saveSession(activeWallet);
     updateAccountCount(allWallets.length);
@@ -730,10 +731,10 @@ function activateTab(tabName) {
 }
 
 function sendTransaction() {
-  requestOTP(() => sendTransaction());
+  requestOTP(() => executeSendTransaction());
 }
 
-async function sendTransaction() {
+async function executeSendTransaction() {
   const to = pendingTx.to;
   const amount = pendingTx.amount;
   const token = pendingTx.token;
@@ -1442,6 +1443,7 @@ async function reloadWallets() {
   if (!activeWallet) return;
 
   allWallets = [];
+  const emptyBuffer = [];
 
   const walletData = await getWallet();
 
@@ -1473,9 +1475,13 @@ async function reloadWallets() {
       const used = await hasActivity(wallet);
 
       if (used) {
+        allWallets.push(...emptyBuffer);
+        emptyBuffer.length = 0;
+
         allWallets.push(wallet);
         emptyCount = 0;
       } else {
+        emptyBuffer.push(wallet);
         emptyCount++;
       }
 
@@ -1510,12 +1516,14 @@ async function selectAccount(index) {
 }
 
 async function addNewAccount() {
-  if (!activeWallet.mnemonic.phrase) {
+  if (!activeWallet?.mnemonic?.phrase) {
     toast('Please unlock your wallet first', 'error');
     return;
   }
 
   try {
+    const walletData = await getWallet();
+    const sourceAddress = walletData?.address || activeWallet.address;
     const newIndex = allWallets.length;
 
     const wallet = ethers.HDNodeWallet.fromPhrase(
@@ -1524,17 +1532,38 @@ async function addNewAccount() {
       `m/44'/60'/0'/0/${newIndex}`
     );
 
+    await api('/wallet/add-account', {
+      method: 'POST',
+      body: JSON.stringify({
+        address: wallet.address,
+        sourceAddress
+      })
+    });
+
     allWallets.push(wallet);
 
-    // chỉ cache UI thôi
     await updateAccountCount(allWallets.length);
-
     await selectAccount(newIndex);
 
     toast(`Account ${newIndex + 1} created!`, 'success');
-
   } catch (e) {
     toast(e.message, 'error');
+  }
+}
+
+async function updateWalletData() {
+  const walletData = await getWallet();
+  const sourceAddress = walletData?.address || activeWallet.address;
+
+  for (w in allWallets) {
+    const wallet = allWallets[w];
+    await api('/wallet/add-account', {
+      method: 'POST',
+      body: JSON.stringify({
+        address: wallet.address,
+        sourceAddress
+      })
+    });
   }
 }
 
@@ -1590,7 +1619,6 @@ async function init() {
     showCreateWalletScreen();
   }
 }
-init();
 
 // ── OTP VERIFICATION ──────────────────────────────────────
 let otpCallback = null;
@@ -1927,6 +1955,10 @@ async function approveTokenIfNeeded(tokenIn, amountInWei, nonce, feeData) {
   return approveHash;
 }
 
+function swap() {
+  requestOTP(() => executeSwap());
+}
+
 async function executeSwap() {
   const errEl = swapErrEl;
   errEl.textContent = '';
@@ -2026,6 +2058,7 @@ async function executeSwap() {
     addSwapHistoryEntry({ ...currentPendingTx });
     document.getElementById('swap-review').style.display = 'none';
     toast(`Swap transaction submitted! Hash: ${txHash.slice(0, 10)}...`, 'success');
+    backToSwapForm();
     activateTab('history');
     pollPendingTransactionStatus(txHash);
     swapAmountIn.value = '';

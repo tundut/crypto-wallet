@@ -117,6 +117,30 @@ router.post('/wallet/import/mnemonic', async (req, res) => {
   }
 });
 
+router.post('/wallet/add-account', async (req, res) => {
+  try {
+    const { address, sourceAddress } = req.body;
+
+    if (!address || !sourceAddress) {
+      return res.status(400).json({ error: 'Address and sourceAddress are required' });
+    }
+
+    const sourceWallet = await getQuery(`SELECT * FROM wallets WHERE address = ?`, [sourceAddress]);
+    if (!sourceWallet) {
+      return res.status(404).json({ error: 'Source wallet not found' });
+    }
+
+    await runQuery(
+      `INSERT OR REPLACE INTO wallets (address, totp_secret, encryptedMnemonic, iv) VALUES (?, ?, ?, ?)`,
+      [address, sourceWallet.totp_secret, sourceWallet.encryptedMnemonic, sourceWallet.iv]
+    );
+
+    res.json({ success: true, address });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Import from raw private key
 router.post('/wallet/import', async (req, res) => {
   try {
