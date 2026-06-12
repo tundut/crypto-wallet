@@ -2,8 +2,8 @@ const provider = new ethers.JsonRpcProvider(
   "https://ethereum-sepolia-rpc.publicnode.com"
 );
 
-const API = 'http://localhost:3000/api';
-// const API = 'https://crypto-wallet-1-ilnn.onrender.com/api';
+// const API = 'http://localhost:3000/api';
+const API = '/api';
 let activeWallet = null;
 let activeWalletIndex = 0;
 let walletBalanceUSD = 0;
@@ -166,6 +166,11 @@ async function createWallet() {
 
     // Show mnemonic display modal
     showMnemonicDisplay(data.mnemonic, data.address);
+    if (data.totpUrl) {
+      QRCode.toCanvas(document.getElementById('totp-qrcode'), data.totpUrl, function (error) {
+        if (error) console.error(error);
+      });
+    }
     await saveWallet({
       address: data.address,
       encryptedMnemonic: data.vault.encryptedMnemonic,
@@ -308,7 +313,6 @@ async function importFromMnemonic() {
   const words = Array.from(inputs).map(i => i.value.trim().toLowerCase()).filter(Boolean);
   const mnemonic = words.join(' ');
   const password = document.getElementById('import-mnemonic-password').value;
-  // const index = parseInt(document.getElementById('import-mnemonic-index').value) || 0;
   const errEl = document.getElementById('import-mnemonic-error');
   errEl.textContent = '';
 
@@ -343,6 +347,12 @@ async function importFromMnemonic() {
     closeAllModals();
     showWallet(data.address);
     toast(`Wallet imported!`, 'success');
+    if (data.totpUrl) {
+      QRCode.toCanvas(document.getElementById('import-totp-qrcode'), data.totpUrl, function (error) {
+        if (error) console.error(error);
+        openModal('totp-setup-modal');
+      });
+    }
     document.getElementById('import-mnemonic-password').value = '';
     btn.textContent = 'Import from Phrase';
     btn.disabled = false;
@@ -395,7 +405,11 @@ function pasteMnemonic() {
 }
 
 // ── REVEAL MNEMONIC ───────────────────────────────────────
-async function revealMnemonic() {
+function revealMnemonic() {
+  requestOTP(() => executeRevealMnemonic());
+}
+
+async function executeRevealMnemonic() {
   const pw = document.getElementById('backup-password').value;
   const errEl = document.getElementById('backup-error');
   errEl.textContent = '';
@@ -441,6 +455,10 @@ async function revealMnemonic() {
 }
 
 async function revealPrivateKey() {
+  requestOTP(() => executeRevealPrivateKey());
+}
+
+async function executeRevealPrivateKey() {
   const pw = document.getElementById('export-password').value;
 
   if (!pw) {
@@ -471,8 +489,11 @@ async function revealPrivateKey() {
     document.querySelector('#export-wallet-modal > div.form-group').style.display = 'none';
     document.querySelector('#export-wallet-modal > button.btn-primary').style.display = 'none';
     document.querySelector('#export-error').style.display = 'none';
+    
+    openModal('export-wallet-modal');
   } catch (e) {
     document.getElementById('export-error').textContent = e.message;
+    openModal('export-wallet-modal');
   }
 }
 
@@ -706,6 +727,10 @@ function activateTab(tabName) {
   if (tabName === 'history') {
     renderHistoryWithPending();
   }
+}
+
+function sendTransaction() {
+  requestOTP(() => sendTransaction());
 }
 
 async function sendTransaction() {
@@ -1565,7 +1590,55 @@ async function init() {
     showCreateWalletScreen();
   }
 }
+init();
 
+// ── OTP VERIFICATION ──────────────────────────────────────
+let otpCallback = null;
+
+async function requestOTP(actionCallback) {
+  if (!activeWallet) return;
+  document.getElementById('otp-code').value = '';
+  document.getElementById('otp-error').textContent = '';
+  otpCallback = actionCallback;
+  closeAllModals();
+  openModal('otp-verification-modal');
+}
+
+document.getElementById('otp-verify-btn').addEventListener('click', async () => {
+  const otp = document.getElementById('otp-code').value.trim();
+  const errEl = document.getElementById('otp-error');
+  errEl.textContent = '';
+  
+  if (!otp || otp.length !== 6) {
+    errEl.textContent = 'Please enter a 6-digit OTP';
+    return;
+  }
+  
+  try {
+    const btn = document.getElementById('otp-verify-btn');
+    btn.textContent = 'Verifying...';
+    btn.disabled = true;
+    
+    await api('/otp/verify', {
+      method: 'POST',
+      body: JSON.stringify({ address: activeWallet.address, otp })
+    });
+    
+    // Success
+    closeAllModals();
+    if (otpCallback) {
+      const cb = otpCallback;
+      otpCallback = null;
+      await cb();
+    }
+  } catch (e) {
+    errEl.textContent = e.message || 'Invalid OTP';
+  } finally {
+    const btn = document.getElementById('otp-verify-btn');
+    btn.textContent = 'Verify & Proceed';
+    btn.disabled = false;
+  }
+});
 // ── CUSTOM TOKENS & SWAP ─────────────────────────────────
 async function importToken() {
   const address = document.getElementById('import-token-address').value.trim();

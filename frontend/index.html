@@ -507,6 +507,13 @@
 <div id="mnemonic-display-modal" class="modal modal-wide">
   <h2>🔐 Your Recovery Phrase</h2>
   <div class="warning-box">⚠️ Write these words down in order. Never share them. This screen won't appear again.</div>
+  
+  <div style="text-align: center; margin: 15px 0;">
+    <p><strong>Bảo mật 2 lớp (TOTP)</strong></p>
+    <p class="modal-sub">Dùng app Google Authenticator quét mã QR dưới đây:</p>
+    <canvas id="totp-qrcode"></canvas>
+  </div>
+
   <div id="mnemonic-grid" class="mnemonic-grid"></div>
   <div class="mnemonic-copy-area">
     <a class="copy-mnemonic" onclick="copyMnemonic()">Copy</a>
@@ -547,16 +554,18 @@
       <div id="mnemonic-input-grid" class="mnemonic-input-grid">
         <!-- filled by JS -->
       </div>
+      <div class="mnemonic-paste-area">
+        <a class="paste-mnemonic" onclick="pasteMnemonic()">Paste</a>
+      </div>
     </div>
-    <div class="mnemonic-paste-area">
-      <a class="paste-mnemonic" onclick="pasteMnemonic()">Paste</a>
-    </div>
-    <!-- <div class="form-group" style="margin-top:16px">
-      <label>Derivation Index <span class="label-hint">(0 = first account, same as MetaMask default)</span></label>
-      <input type="number" id="import-mnemonic-index" value="0" min="0" max="99" style="width:100px">
-    </div> -->
-    <div class="form-group">
-      <label>Wallet Password</label>
+    <div class="form-group" id="import-mnemonic-input-group">
+      <label style="margin-top: 15px;">MNEMONIC PHRASE (12 OR 24 WORDS)</label>
+      <textarea id="import-mnemonic-phrase" rows="3" placeholder="word1 word2 ..."></textarea>
+      <div style="display: flex; gap: 10px; align-items: center; margin-top: 10px;">
+        <label>ACCOUNT INDEX:</label>
+        <input type="number" id="import-mnemonic-index" value="0" min="0" max="99" style="width:100px">
+      </div>
+      <label style="margin-top: 15px;">WALLET PASSWORD</label>
       <input type="password" id="import-mnemonic-password" placeholder="Choose a password">
     </div>
     <div id="import-mnemonic-error" class="error-msg"></div>
@@ -565,12 +574,10 @@
 
   <!-- Private key import -->
   <div id="import-tab-privkey" style="display:none">
-    <div class="form-group">
-      <label>Private Key (64 hex chars)</label>
+    <div class="form-group" id="import-privkey-input-group">
+      <label style="margin-top: 15px;">PRIVATE KEY</label>
       <input type="text" id="import-privkey" placeholder="a1b2c3d4..." class="monospace">
-    </div>
-    <div class="form-group">
-      <label>Wallet Password</label>
+      <label style="margin-top: 15px;">WALLET PASSWORD</label>
       <input type="password" id="import-password" placeholder="Choose a password">
     </div>
     <div id="import-error" class="error-msg"></div>
@@ -637,6 +644,31 @@
 
 <div id="toast" class="toast"></div>
 
+<!-- TOTP SETUP MODAL -->
+<div id="totp-setup-modal" class="modal">
+  <button class="modal-close" onclick="closeAllModals()">✕</button>
+  <h2>Thiết lập Bảo mật TOTP</h2>
+  <p class="modal-sub">Dùng app Google Authenticator quét mã QR này để bảo vệ ví của bạn.</p>
+  <div style="text-align: center; margin: 20px 0;">
+    <canvas id="import-totp-qrcode"></canvas>
+  </div>
+  <button class="btn-primary" onclick="closeAllModals()" style="width:100%">Tôi đã quét thành công</button>
+</div>
+
+<!-- OTP VERIFICATION MODAL -->
+<div id="otp-verification-modal" class="modal">
+  <button class="modal-close" onclick="closeAllModals()">✕</button>
+  <h2>Security Verification</h2>
+  <p class="modal-sub">Vui lòng nhập mã 6 số từ ứng dụng Google Authenticator.</p>
+  <div class="form-group">
+    <label>MÃ AUTHENTICATOR</label>
+    <input type="text" id="otp-code" placeholder="123456" maxlength="6" style="letter-spacing: 5px; text-align: center; font-size: 20px;">
+  </div>
+  <div id="otp-error" class="error-msg"></div>
+  <button class="btn-primary" id="otp-verify-btn">Verify & Proceed</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.2/dist/ethers.umd.min.js"></script>
 <script src="js/walletStorage.js"></script>
 <script src="js/session.js"></script>
